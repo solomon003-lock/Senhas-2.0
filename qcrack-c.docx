@@ -1,0 +1,231 @@
+/
+import pandas as pd
+import string
+
+senha_input= input("Digite uma senha:")
+tamanho =  len(senha_input)
+senha = list(senha_input)
+print(tamanho)
+print(senha)
+
+alfabeto = [ "a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","x","z","w","y"]
+i=0
+adivinha = []
+
+for i in range(0,(tamanho)):
+    adivinha.append(("a"))
+print("adivinha agora é :" , adivinha)
+
+i=0
+a=0
+k = tamanho-1
+while adivinha[k] != senha[k]:
+  if (senha[a] != alfabeto[i]) is True:
+    print("i é igual a  ", i, "a é igual a ", a , "diferente") #linha para imprimir na tela as interações e tentar identificar o erro
+    i = i+1
+  else:
+    adivinha[a]=alfabeto[i]
+    print( "a é igual a ", a ,"i é igual a  ", i,"igual", adivinha) #linha para imprimir na tela as interações e tentar identificar o erro
+
+    i = 0
+    a=a+1
+
+print("A senha digitada é: ",adivinha)*
+ * [Autor]
+ * Marcos Paulo Ferreira (Daemonio)
+ * undefinido gmail com
+ * http://daemoniolabs.wordpress.com
+ *
+ * [qcrack.c]
+ * Programa simples que quebra senhas encriptadas
+ * pela função crypt().
+ * O arquivo de senhas, na maioria das vezes o
+ * arquivo /etc/shadow, DEVE seguir esse formato:
+ *
+ * <usuario>:$id$salt$encrypt (veja: man crypt)
+ * Ex:
+ * daemonio:$6$eqwsadsf$c2FpIGRha2kK
+ *
+ * [Como compilar]
+ * $ gcc -o qcrack qcrack.c -lcrypt
+ *
+ * [Como usar]
+ * $ ./qcrack <shadow> <wordlist>
+ *
+ * Em que:
+ * <shadow>   : arquivo shadow
+ * <wordlist> : wordlist
+ *
+ * Versão 1.0
+ * Ter Ago 23 23:01:11 BRT 2011
+ * Qua Ago 24 16:39:27 BRT 2011
+ *
+ * Versão 1.1
+ * Mon May 14 19:27:38 BRT 2012
+ */
+
+/* Necessário para crypt() (veja: $ man crypt)*/
+#define _XOPEN_SOURCE 700
+
+#include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+#include <unistd.h>
+
+/* Tamanhos máximos de alguns campos
+ * do arquivo shadow. */
+#define LOGIN_LEN 51
+#define ID_LEN 6
+#define SALT_LEN 101
+#define HASH_LEN 1025
+
+#define FALSE 0
+#define TRUE 1
+
+/* Estrutura que contém alguns
+ * campos do arquivo shadow. */
+struct st_shadow {
+    char login[LOGIN_LEN] ;
+    char id[ID_LEN] ;
+    char salt[SALT_LEN] ;
+    char hash[HASH_LEN] ;
+} ;
+
+/* Armazena os campos do shadow em uma struct.
+ * Os campos são extraídos usando strtok() e
+ * armazenados em posições específicas
+ * partindo do ponteiro da struct.
+ */
+char get_info_shadow(char *linha, struct st_shadow *st) {
+    char qtd = 0 ;
+    char *token ;
+    int i ;
+    /* tamanho máximo de cada campo */
+    int lengths[] = {LOGIN_LEN, ID_LEN, SALT_LEN, HASH_LEN} ;
+    /* p aponta para o campo atual */
+    char *p = (char *)st ;
+
+    i = 0;
+    while((token=strtok(linha, ":$"))&&(qtd<4)) {
+        /* copia o campo para p */
+        strncpy(p, token, lengths[i]) ;
+        /* contador de campos lidos */
+        qtd++ ;
+        p+=lengths[i] ;
+        /* Na segunda chamada de strtok,
+         * linha deve ser NULL. */
+        linha = NULL ;
+        i++ ;
+    }
+
+    /* Formato não suportado do shadow. */
+    if ( qtd != 4 ) {
+        return FALSE ;
+    }
+
+    return TRUE;
+}
+
+/* Mostra algumas informações. */
+void show_info(struct st_shadow *st) {
+    puts("************************") ;
+    printf("Usuario   : %s\n", st->login) ;
+
+    printf("Algoritmo : ") ;
+    if ( !strcmp(st->id, "1") ){
+        printf("MD5\n") ;
+    } else if ( !strcmp(st->id, "2a") ) {
+        printf("Blowfish\n") ;
+    } else if ( !strcmp(st->id, "5") ) {
+        printf("SHA-256\n") ;
+    } else if ( !strcmp(st->id, "6") ) {
+        printf("SHA-512\n") ;
+    } else {
+        printf("Desconhecido...\n") ;
+    }
+
+    printf("Salt      : %s\n", st->salt) ;
+    printf("Hash      : %s\n", st->hash) ;
+    printf("SENHA     : ") ;
+    fflush(stdout) ;
+}
+
+/* Função que quebra a senha. Ela basicamente compara
+ * o hash gerado para cada senha da wordlist com o
+ * hash do shadow. Se os hashes são iguais, então a
+ * senha foi quebrada. */
+void quebrar_senha(struct st_shadow *st, FILE *wordlist) {
+    char senha[BUFSIZ], idsaltsenha[BUFSIZ] ;
+    char *crypthash ;
+
+    show_info(st) ;
+
+    /* Vá para o início do arquivo. */
+    rewind(wordlist) ;
+
+    /* Obtém cada senha da wordlist */
+    while(fgets(senha, BUFSIZ, wordlist)) {
+        if ( senha[strlen(senha)-1] == '\n' ) {
+            senha[strlen(senha)-1] = 0 ;
+        }
+        /* $id$salt$encrypt*/
+        sprintf(idsaltsenha, "$%s$%s$%s", st->id, st->salt, st->hash) ;
+
+        /* gera o hash de `senha' */
+        crypthash = (char *)crypt(senha, idsaltsenha) ;
+
+        /* Jackpot!! Quebramos a senha */
+        if ( crypthash != NULL ) {
+            if ( !strcmp(crypthash, idsaltsenha) ) {
+                printf("%s\n", senha) ;
+                return ;
+            }
+            /* Algo errado em crypt(). */
+        } else {
+            printf("\n>> Erro em crypt(). Impossível criar hash. <<\n") ;
+            return ;
+        }
+    }
+
+    /* Senha não quebrada. */
+    printf("<senha nao quebrada>\n") ;
+}
+
+int main(int argc, char **argv) {
+    FILE *shadow, *wordlist ;
+    char linhashadow[BUFSIZ] ;
+    struct st_shadow stshadow ;
+
+    if ( argc < 3 ) {
+        printf("qcrack - by Daemonio\n") ;
+        printf("[uso] %s <shadow> <wordlist>\n", argv[0]) ;
+        return -1 ;
+    }
+    /* arquivo shadow */
+    if( (shadow=fopen(argv[1], "r")) == NULL ) {
+        perror(argv[1]) ;
+        return -1 ;
+    }
+
+    /* wordlist */
+    if( (wordlist=fopen(argv[2], "r")) == NULL ) {
+        perror(argv[2]) ;
+        return -1 ;
+    }
+
+    /* Para cada usuário no shadow, a wordlist
+     * é lida para tentar quebrar sua senha. */
+    while( fgets(linhashadow, BUFSIZ, shadow) ) {
+        if ( get_info_shadow(linhashadow, &stshadow) == TRUE ) {
+            /* Formato inválido do arquivo shadow. Aqui
+             * só ignoramos a linha. */
+            if ( !isdigit(stshadow.id[0]) ) {
+                continue ;
+            } else {
+                quebrar_senha(&stshadow, wordlist) ;
+            }
+        }
+    }
+
+    return 0 ;
+}
